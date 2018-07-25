@@ -87,6 +87,8 @@ public class NiceVideoPlayer extends FrameLayout
      **/
     public static final int TYPE_NATIVE = 222;
 
+    public static final int  TYPE_VIDEOVIEW = 333;
+
     private int mPlayerType = TYPE_IJK;
     private int mCurrentState = STATE_IDLE;
     private int mCurrentMode = MODE_NORMAL;
@@ -104,6 +106,8 @@ public class NiceVideoPlayer extends FrameLayout
     private int mBufferPercentage;
     private boolean continueFromLastPosition = true;
     private long skipToPosition;
+
+    private ResizableVideoView mVideoView;
 
     public NiceVideoPlayer(Context context) {
         this(context, null);
@@ -172,10 +176,23 @@ public class NiceVideoPlayer extends FrameLayout
     public void start() {
         if (mCurrentState == STATE_IDLE) {
             NiceVideoPlayerManager.instance().setCurrentNiceVideoPlayer(this);
-            initAudioManager();
-            initMediaPlayer();
-            initTextureView();
-            addTextureView();
+            if (mPlayerType ==TYPE_VIDEOVIEW){
+                initMediaPlayer();
+                if (mVideoView!=null)
+                mContainer.removeAllViews();
+                LayoutParams params = new LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        Gravity.CENTER);
+                mVideoView.changeVideoSize(mContainer.getWidth(),mContainer.getHeight());
+                mContainer.addView(mVideoView, 0, params);
+                openVideoView();
+            }else {
+                initAudioManager();
+                initMediaPlayer();
+                initTextureView();
+                addTextureView();
+            }
         } else {
             LogUtil.d("NiceVideoPlayer只有在mCurrentState == STATE_IDLE时才能调用start方法.");
         }
@@ -357,6 +374,10 @@ public class NiceVideoPlayer extends FrameLayout
                 case TYPE_NATIVE:
                     mMediaPlayer = new AndroidMediaPlayer();
                     break;
+                case TYPE_VIDEOVIEW:
+                    mVideoView = new ResizableVideoView(mContext);
+                    mMediaPlayer = new VideoViewPlayer(mVideoView);
+                    break;
                 case TYPE_IJK:
                 default:
                     mMediaPlayer = new IjkMediaPlayer();
@@ -394,6 +415,24 @@ public class NiceVideoPlayer extends FrameLayout
             openMediaPlayer();
         } else {
             mTextureView.setSurfaceTexture(mSurfaceTexture);
+        }
+    }
+    private void openVideoView(){
+        // 屏幕常亮
+        mContainer.setKeepScreenOn(true);
+        // 设置监听
+        mMediaPlayer.setOnPreparedListener(mOnPreparedListener);
+        mMediaPlayer.setOnCompletionListener(mOnCompletionListener);
+        mMediaPlayer.setOnErrorListener(mOnErrorListener);
+        mMediaPlayer.setOnInfoListener(mOnInfoListener);
+        try {
+            mMediaPlayer.setDataSource(mContext.getApplicationContext(), Uri.parse(mUrl), mHeaders);
+            mCurrentState = STATE_PREPARING;
+            mController.onPlayStateChanged(mCurrentState);
+            LogUtil.d("openVideoView STATE_PREPARING");
+        } catch (IOException e) {
+            e.printStackTrace();
+            LogUtil.e("打开播放器发生错误", e);
         }
     }
 
